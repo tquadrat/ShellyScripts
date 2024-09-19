@@ -1,57 +1,109 @@
+/*
+ * ============================================================================
+ * Copyright © 2002-2024 by Thomas Thrien.
+ * All Rights Reserved.
+ * ============================================================================
+ * Licensed to the public under the agreements of the GNU Lesser General Public
+ * License, version 3.0 (the "License"). You may obtain a copy of the License at
+ *
+ *      http://www.gnu.org/licenses/lgpl.html
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Use this script to switch on some light as the response to motion detected
+ * by a Shelly Blu Motion device.
+ *
+ * The script will only respond if the reported illuminance is below a given
+ * threshold. Therefore it should be used with only one Shelly BLU Motion only,
+ * although it supports multiple of them.
+ *
+ * The switching Shelly component (a Shelly Plus1 in my case) is configured to
+ * revert the device status after some time; this is not configured by the
+ * script.
+ */
 /******************* START CHANGE HERE *******************/
 let CONFIG = {
-  // When set to true, debug messages will be logged to the console
+  /**
+   * When set to true, debug messages will be logged to the console.
+   */
   debug: true,
 
-  // When set to true and the script ownes the scanner, the scan will be active. 
-  // Active scan means the scanner will ping back the Bluetooth device to receive all its data, but it will drain the battery faster
+  /**
+   * When set to true and the script owns the scanner, the scan will be active.
+   * Active scan means the scanner will ping back the Bluetooth device to
+   * receive all its data, but it will drain the battery of that device faster.
+   */
   active: false,
 
-  // When `allowedMacAddresses` is set to null, events from every bluetooth device are accepted. 
-  //  allowedMacAddresses: null, 
+  /**
+   * When `allowedMacAddresses` is set to null, events from every bluetooth
+   * device are accepted, otherwise only those from a device whose MAC address
+   * will match.
+   */
+  //  allowedMacAddresses: null,
   allowedMacAddresses: [
   // "aa:bc:12:34:56:78", // events only from these mac addresses are allowed.
-    "b0:c7:de:3b:29:15" 
+    "b0:c7:de:3b:29:15"
   ],
 
+  illuThreshold: 15,
+
   /**
-   * Called when motion is reported from the filtered Shelly BLU Motion devices.
-   * @param {Boolean} motion true, when there is a motion, false otherwise. 
-   * @param {Object} eventData Object, containing all parameters received from the Shelly BLU Motion device. Example: {"encryption":false,"BTHome_version":2,"pid":16,"battery":100,"illuminance":109,"motion":1,"button":1,"rssi":-53,"address":"aa:bc:12:34:56:78"} 
+   * Called when motion is reported by the filtered Shelly BLU Motion devices.
+   *
+   * @param {Boolean} motion – true, when there was motion detected, false
+   *     otherwise.
+   * @param {Object} eventData – An object, containing all parameters received
+   *     from the Shelly BLU Motion device.
+   *     Example: {"encryption":false,"BTHome_version":2,"pid":16,
+   *         "battery":100,"illuminance":109,"motion":1,"button":1,"rssi":-53,
+   *         "address":"aa:bc:12:34:56:78"}
    */
-  motionHandler: function (motion, eventData) {
-    let illuThreshold = 15;
-    // Toggle the first replay ON/OFF based on the motion value.
+  motionHandler: function( motion, eventData )
+  {
     console.log( "Threshold:   ", illuThreshold );
     console.log( "Motion:      ", motion );
     console.log( "Illuminance: ", eventData.illuminance );
-    if( motion && eventData.illuminance < illuThreshold ) {
+    if( motion && eventData.illuminance < CONFIG.illuThreshold )
+    {
       console.log( "Light switched on" );
       Shelly.call( "Switch.Set", { id: 0, on: true } );
     }
   },
 
   /**
-   * Called when illuminance is reported from the filtered Shelly BLU Motion devices.
-   * @param {Number} illuminance Current illuminance value.
-   * @param {Object} eventData Object, containing all parameters received from the Shelly BLU Motion device. Example: {"encryption":false,"BTHome_version":2,"pid":16,"battery":100,"illuminance":109,"motion":1,"button":1,"rssi":-53,"address":"aa:bc:12:34:56:78"}
+   * Called when illuminance is reported from the filtered Shelly BLU Motion
+   * devices.
+   *
+   * @param {Number} illuminance – Current illuminance value.
+   * @param {Object} eventData – An object, containing all parameters received
+   *     from the Shelly BLU Motion device.
+   *     Example: {"encryption":false,"BTHome_version":2,"pid":16,
+   *         "battery":100,"illuminance":109,"motion":1,"button":1,"rssi":-53,
+   *         "address":"aa:bc:12:34:56:78"}
    */
-  illuminanceHandler: function (illuminance, eventData) {
-    // Compile the topic based on the mac address of the reporter.
-    
-//    console.log( "Illuminance", illuminance );
-//    let topic = eventData.address + "/illuminance";
-
-    // Publish the data.
-//    MQTT.publish(topic, String(illuminance));
+  illuminanceHandler: function( illuminance, eventData )
+  {
+    // Does nothing currently.
   },
-  
+
   /**
    * Called when packet from filtered Shelly BLU Motion devices is received.
-   * @param {Object} eventData Object, containing all parameters received from the Shelly BLU Motion device. Example: {"encryption":false,"BTHome_version":2,"pid":16,"battery":100,"illuminance":109,"motion":1,"button":1,"rssi":-53,"address":"aa:bc:12:34:56:78"}
+   * @param {Object} eventData – An object, containing all parameters received
+   *    from the Shelly BLU Motion device.
+   *    Example: {"encryption":false,"BTHome_version":2,"pid":16,
+   *        "battery":100,"illuminance":109,"motion":1,"button":1,"rssi":-53,
+   *        "address":"aa:bc:12:34:56:78"}
    */
-  onStatusUpdate: function (eventData) {
-    // Do nothing at the moment.
+  onStatusUpdate: function( eventData )
+  {
+    // Does nothing currently.
   }
 };
 /******************* STOP CHANGE HERE *******************/
@@ -66,34 +118,45 @@ let int16 = 3;
 let uint24 = 4;
 let int24 = 5;
 
-//Logs the provided message with an optional prefix to the console.
-function logger(message, prefix) {
-  //exit if the debug isn't enabled
-  if (!CONFIG.debug) {
-    return;
-  }
+/**
+ * Logs the provided message with an optional prefix to the console.
+ *
+ * @param {Object} message – The message.
+ * @param {String} prefix – The prefix.
+ */
+function logger( message, prefix )
+{
+  //---* Exit if debug isn't enabled *-----------------------------------------
+  if( !CONFIG.debug ) { return; }
 
   let finalText = "";
 
-  //if the message is list loop over it
-  if (Array.isArray(message)) {
-    for (let i = 0; i < message.length; i++) {
-      finalText = finalText + " " + JSON.stringify(message[i]);
+  //---* Loop over it of the message if it is a list of some kind *------------
+  if( Array.isArray( message ) )
+  {
+    for( let i = 0; i < message.length; ++i )
+    {
+      finalText = finalText + " " + JSON.stringify( message [i] );
     }
-  } else {
-    finalText = JSON.stringify(message);
+  }
+  else
+  {
+    finalText = JSON.stringify( message );
   }
 
-  //the prefix must be string
-  if (typeof prefix !== "string") {
+  //---* The prefix must be a string *-----------------------------------------
+  if( typeof prefix !== "string" )
+  {
     prefix = "";
-  } else {
+  }
+  else
+  {
     prefix = prefix + ":";
   }
 
-  //log the result
+  //---* Log the result *------------------------------------------------------
   console.log(prefix, finalText);
-}
+}   //  logger()
 
 // The BTH object defines the structure of the BTHome data
 let BTH = {};
@@ -186,7 +249,7 @@ let BTHomeDecoder = {
 };
 
 function onReceivedPacket (data) {
-  if(CONFIG._processedMacAddresses !== null) { 
+  if(CONFIG._processedMacAddresses !== null) {
     if(CONFIG._processedMacAddresses.indexOf(data.address) < 0) {
       logger(["Received event from", data.address, "outside of the allowed addresses"], "Info");
       return;
@@ -299,8 +362,8 @@ function init() {
     typeof CONFIG.allowedMacAddresses !== "undefined"
   ) {
     if(CONFIG.allowedMacAddresses !== null) {
-      // Process configured mac addresses all to lower case and remove duplicates. 
-      CONFIG._processedMacAddresses = 
+      // Process configured mac addresses all to lower case and remove duplicates.
+      CONFIG._processedMacAddresses =
         CONFIG
           .allowedMacAddresses
           .map(function (mac) { return mac.toLowerCase(); })

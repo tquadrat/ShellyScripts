@@ -158,7 +158,9 @@ function logger( message, prefix )
   console.log(prefix, finalText);
 }   //  logger()
 
-// The BTH object defines the structure of the BTHome data
+/**
+ * The BTH object defines the structure of the BTHome data.
+ */
 let BTH = {};
 BTH[0x00] = { n: "pid", t: uint8 };
 BTH[0x01] = { n: "battery", t: uint8, u: "%" };

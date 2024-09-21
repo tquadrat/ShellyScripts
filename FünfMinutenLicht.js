@@ -52,6 +52,10 @@ let CONFIG = {
     "b0:c7:de:3b:29:15"
   ],
 
+  /**
+   * Light will be switched on only when the illuminance is reported to be
+   * lower than the given value.
+   */
   illuThreshold: 15,
 
   /**
@@ -67,12 +71,9 @@ let CONFIG = {
    */
   motionHandler: function( motion, eventData )
   {
-    console.log( "Threshold:   ", illuThreshold );
-    console.log( "Motion:      ", motion );
-    console.log( "Illuminance: ", eventData.illuminance );
     if( motion && eventData.illuminance < CONFIG.illuThreshold )
     {
-      console.log( "Light switched on" );
+      logger( "Light switched on", "Info" );
       Shelly.call( "Switch.Set", { id: 0, on: true } );
     }
   },
@@ -172,148 +173,195 @@ BTH[0x2d] = { n: "window", t: uint8 };
 BTH[0x3a] = { n: "button", t: uint8 };
 BTH[0x3f] = { n: "rotation", t: int16, f: 0.1 };
 
-function getByteSize(type) {
-  if (type === uint8 || type === int8) return 1;
-  if (type === uint16 || type === int16) return 2;
-  if (type === uint24 || type === int24) return 3;
-  //impossible as advertisements are much smaller;
-  return 255;
-}
+/**
+ * Returns the number of bytes for the given type.
+ *
+ * @param {Number} type – The type.
+ * @return {Number} – The number of byte for the given type; a value of 255
+ *     indicates an error.
+ */
+function getByteSize( type )
+{
+  if( type === uint8 || type === int8 ) return 1;
+  if( type === uint16 || type === int16 ) return 2;
+  if( type === uint24 || type === int24 ) return 3;
 
-// functions for decoding and unpacking the service data from Shelly BLU devices
-let BTHomeDecoder = {
-  utoi: function (num, bitsz) {
+  //---* Impossible as advertisements are much smaller *-----------------------
+  return 255;
+}   //  getByteSize()
+
+/**
+ * Functions for decoding and unpacking the service data from Shelly BLU
+ * devices.
+ */
+let BTHomeDecoder =
+{
+  utoi: function( num, bitsz )
+  {
     let mask = 1 << (bitsz - 1);
     return num & mask ? num - (1 << bitsz) : num;
   },
-  getUInt8: function (buffer) {
-    return buffer.at(0);
+
+  getUInt8: function( buffer )
+  {
+    return buffer.at( 0 );
   },
-  getInt8: function (buffer) {
-    return this.utoi(this.getUInt8(buffer), 8);
+
+  getInt8: function( buffer )
+  {
+    return this.utoi( this.getUInt8( buffer ), 8 );
   },
-  getUInt16LE: function (buffer) {
-    return 0xffff & ((buffer.at(1) << 8) | buffer.at(0));
+
+  getUInt16LE: function( buffer )
+  {
+    return 0xffff & ((buffer.at( 1 ) << 8) | buffer.at( 0 ));
   },
-  getInt16LE: function (buffer) {
-    return this.utoi(this.getUInt16LE(buffer), 16);
+
+  getInt16LE: function( buffer )
+  {
+    return this.utoi( this.getUInt16LE( buffer ), 16 );
   },
-  getUInt24LE: function (buffer) {
-    return (
-      0x00ffffff & ((buffer.at(2) << 16) | (buffer.at(1) << 8) | buffer.at(0))
-    );
+
+  getUInt24LE: function( buffer )
+  {
+    return ( 0x00ffffff & ((buffer.at( 2 ) << 16) | (buffer.at( 1 ) << 8) | buffer.at( 0 ) ) );
   },
-  getInt24LE: function (buffer) {
-    return this.utoi(this.getUInt24LE(buffer), 24);
+
+  getInt24LE: function( buffer )
+  {
+    return this.utoi( this.getUInt24LE( buffer ), 24 );
   },
-  getBufValue: function (type, buffer) {
-    if (buffer.length < getByteSize(type)) return null;
+
+  getBufValue: function( type, buffer )
+  {
+    if( buffer.length < getByteSize( type ) ) return null;
     let res = null;
-    if (type === uint8) res = this.getUInt8(buffer);
-    if (type === int8) res = this.getInt8(buffer);
-    if (type === uint16) res = this.getUInt16LE(buffer);
-    if (type === int16) res = this.getInt16LE(buffer);
-    if (type === uint24) res = this.getUInt24LE(buffer);
-    if (type === int24) res = this.getInt24LE(buffer);
+    if( type === uint8 ) res = this.getUInt8( buffer );
+    if( type === int8 ) res = this.getInt8( buffer );
+    if( type === uint16 ) res = this.getUInt16LE( buffer );
+    if( type === int16 ) res = this.getInt16LE( buffer );
+    if( type === uint24 ) res = this.getUInt24LE( buffer );
+    if( type === int24 ) res = this.getInt24LE( buffer );
     return res;
   },
 
-  // Unpacks the service data buffer from a Shelly BLU device
-  unpack: function (buffer) {
-    //beacons might not provide BTH service data
-    if (typeof buffer !== "string" || buffer.length === 0) return null;
+  /**
+   * Unpacks the service data buffer from a Shelly BLU device.
+   *
+   * @param {String} buffer – The data from the Shelly BLUE device.
+   */
+  unpack: function( buffer )
+  {
+    /*
+     * Beacons might not provide BTH service data!
+     */
+    if( typeof buffer !== "string" || buffer.length === 0 ) return null;
     let result = {};
-    let _dib = buffer.at(0);
-    result["encryption"] = _dib & 0x1 ? true : false;
-    result["BTHome_version"] = _dib >> 5;
-    if (result["BTHome_version"] !== 2) return null;
-    //can not handle encrypted data
+    let _dib = buffer.at( 0 );
+    result ["encryption"] = _dib & 0x1 ? true : false;
+    result ["BTHome_version"] = _dib >> 5;
+    if( result ["BTHome_version"] !== 2 ) return null;
+
+    //---* We cannot handle encrypted data *-----------------------------------
     if (result["encryption"]) return result;
-    buffer = buffer.slice(1);
+
+    buffer = buffer.slice( 1 );
 
     let _bth;
     let _value;
-    while (buffer.length > 0) {
-      _bth = BTH[buffer.at(0)];
-      if (typeof _bth === "undefined") {
-        logger("unknown type", "BTH");
+    while( buffer.length > 0 )
+    {
+      _bth = BTH [buffer.at( 0 )];
+      if( typeof _bth === "undefined" )
+      {
+        logger( "unknown type", "BTH" );
         break;
       }
-      buffer = buffer.slice(1);
-      _value = this.getBufValue(_bth.t, buffer);
-      if (_value === null) break;
-      if (typeof _bth.f !== "undefined") _value = _value * _bth.f;
-      result[_bth.n] = _value;
-      buffer = buffer.slice(getByteSize(_bth.t));
+
+      buffer = buffer.slice( 1 );
+      _value = this.getBufValue( _bth.t, buffer );
+      if( _value === null ) break;
+      if( typeof _bth.f !== "undefined" ) _value = _value * _bth.f;
+      result [_bth.n] = _value;
+      buffer = buffer.slice( getByteSize( _bth.t ) );
     }
     return result;
   },
 };
 
-function onReceivedPacket (data) {
-  if(CONFIG._processedMacAddresses !== null) {
-    if(CONFIG._processedMacAddresses.indexOf(data.address) < 0) {
-      logger(["Received event from", data.address, "outside of the allowed addresses"], "Info");
+/**
+ * The handler that is called when a data package was received.
+ *
+ * @param {Object} data – The data package.
+ */
+function onReceivedPacket( data )
+{
+  if( CONFIG._processedMacAddresses !== null )
+  {
+    if( CONFIG._processedMacAddresses.indexOf( data.address ) < 0 )
+    {
+      logger( ["Received event from", data.address, "outside of the allowed addresses"], "Info" );
       return;
     }
   }
 
-  if (
-    typeof CONFIG.motionHandler === "function" &&
-    typeof data.motion !== "undefined"
-  ) {
-    CONFIG.motionHandler(data.motion === 1, data);
-    logger("Motion handler called", "Info");
+  if( typeof CONFIG.motionHandler === "function" && typeof data.motion !== "undefined" )
+  {
+    CONFIG.motionHandler( data.motion === 1, data );
+    logger( "Motion handler called", "Info" );
   }
 
-  if (
-    typeof CONFIG.illuminanceHandler === "function" &&
-    typeof data.illuminance !== "undefined"
-  ) {
-    CONFIG.illuminanceHandler(data.illuminance, data);
-    logger("Illuminance handler called", "Info");
+  if( typeof CONFIG.illuminanceHandler === "function" && typeof data.illuminance !== "undefined" )
+  {
+    CONFIG.illuminanceHandler( data.illuminance, data );
+    logger( "Illuminance handler called", "Info" );
   }
 
-  if (typeof CONFIG.onStatusUpdate === "function") {
-    CONFIG.onStatusUpdate(data);
-    logger("New status update", "Info");
+  if( typeof CONFIG.onStatusUpdate === "function" )
+  {
+    CONFIG.onStatusUpdate( data );
+    logger( "New status update", "Info" );
   }
-}
+}   //  onReceivedPacket()
 
-//saving the id of the last packet, this is used to filter the duplicated packets
+/*
+ * We are saving the id of the last packet here; this is used to filter on
+ * duplicate packets.
+ */
 let lastPacketId = 0x100;
 
-// Callback for the BLE scanner object
-function BLEScanCallback(event, result) {
-  //exit if not a result of a scan
-  if (event !== BLE.Scanner.SCAN_RESULT) {
+/*
+ * The Callback for the BLE scanner object.
+ *
+ * @param {Object} event –
+ * @param {Object} result –
+ */
+function BLEScanCallback( event, result )
+{
+  //---* exit if not a result of a scan *--------------------------------------
+  if( event !== BLE.Scanner.SCAN_RESULT )
+  {
     return;
   }
 
-  //exit if service_data member is missing
-  if (
-    typeof result.service_data === "undefined" ||
-    typeof result.service_data[BTHOME_SVC_ID_STR] === "undefined"
-  ) {
+  //---* exit if service_data member is missing *------------------------------
+  if( typeof result.service_data === "undefined" || typeof result.service_data [BTHOME_SVC_ID_STR] === "undefined" )
+  {
     return;
   }
 
-  let unpackedData = BTHomeDecoder.unpack(
-    result.service_data[BTHOME_SVC_ID_STR]
-  );
+  let unpackedData = BTHomeDecoder.unpack( result.service_data [BTHOME_SVC_ID_STR] );
 
-  //exit if unpacked data is null or the device is encrypted
-  if (
-    unpackedData === null ||
-    typeof unpackedData === "undefined" ||
-    unpackedData["encryption"]
-  ) {
-    logger("Encrypted devices are not supported", "Error");
+  //---* exit if unpacked data is null or the device is encrypted *------------
+  if( unpackedData === null || typeof unpackedData === "undefined" || unpackedData ["encryption"] )
+  {
+    logger( "Encrypted devices are not supported", "Error" );
     return;
   }
 
-  //exit if the event is duplicated
-  if (lastPacketId === unpackedData.pid) {
+  //---* exit if the event is duplicated *-------------------------------------
+  if( lastPacketId === unpackedData.pid )
+  {
     return;
   }
 
@@ -322,62 +370,79 @@ function BLEScanCallback(event, result) {
   unpackedData.rssi = result.rssi;
   unpackedData.address = result.addr;
 
-  onReceivedPacket(unpackedData);
-}
+  //---* Call the handler *----------------------------------------------------
+  onReceivedPacket( unpackedData );
+}   //  BLEScanCallback()
 
-// Initializes the script and performs the necessary checks and configurations
-function init() {
-  //exit if can't find the config
-  if (typeof CONFIG === "undefined") {
+/**
+ * Initializes the script and performs the necessary checks and configurations.
+ */
+function init()
+{
+  //---* exit if can't find the config *---------------------------------------
+  if( typeof CONFIG === "undefined" )
+  {
     console.log("Error: Undefined config");
     return;
   }
 
-  //get the config of ble component
-  let BLEConfig = Shelly.getComponentConfig("ble");
+  //---* Get the config of the BLE component *---------------------------------
+  let BLEConfig = Shelly.getComponentConfig( "ble" );
 
-  //exit if the BLE isn't enabled
-  if (!BLEConfig.enable) {
-    console.log(
-      "Error: The Bluetooth is not enabled, please enable it from settings"
-    );
+  //---* exit if the BLE isn't enabled *---------------------------------------
+  if( !BLEConfig.enable )
+  {
+    console.log( "Error: The Bluetooth is not enabled, please enable it from settings" );
     return;
   }
 
-  //check if the scanner is already running
-  if (BLE.Scanner.isRunning()) {
-    console.log("Info: The BLE gateway is running, the BLE scan configuration is managed by the device");
+  //---* check if the scanner is already running *-----------------------------
+  if( BLE.Scanner.isRunning() )
+  {
+    console.log( "Info: The BLE gateway is running, the BLE scan configuration is managed by the device" );
   }
-  else {
-    //start the scanner
-    let bleScanner = BLE.Scanner.Start({
+  else
+  {
+    //---* Start the scanner *-------------------------------------------------
+    let bleScanner = BLE.Scanner.Start(
+    {
         duration_ms: BLE.Scanner.INFINITE_SCAN,
         active: CONFIG.active
     });
 
-    if(!bleScanner) {
-      console.log("Error: Can not start new scanner");
+    if( !bleScanner )
+    {
+      console.log( "Error: Can not start new scanner" );
     }
   }
 
-  if (
-    typeof CONFIG.allowedMacAddresses !== "undefined"
-  ) {
-    if(CONFIG.allowedMacAddresses !== null) {
-      // Process configured mac addresses all to lower case and remove duplicates.
+  if ( typeof CONFIG.allowedMacAddresses !== "undefined" )
+  {
+    if( CONFIG.allowedMacAddresses !== null )
+    {
+      /*
+       * Process configured mac addresses all to lower case and remove any
+       * duplicates.
+       */
       CONFIG._processedMacAddresses =
         CONFIG
           .allowedMacAddresses
-          .map(function (mac) { return mac.toLowerCase(); })
-          .filter(function (value, index, array) { return array.indexOf(value) === index; })
+          .map( function( mac ) { return mac.toLowerCase(); } )
+          .filter( function( value, index, array ) { return array.indexOf(value) === index; } )
     }
-    else {
+    else
+    {
       CONFIG._processedMacAddresses = null;
     }
   }
 
-  //subscribe a callback to BLE scanner
-  BLE.Scanner.Subscribe(BLEScanCallback);
-}
+  //---* Subscribe a callback to BLE scanner *---------------------------------
+  BLE.Scanner.Subscribe( BLEScanCallback );
+}   //  init()
 
+//---* Of we go go! *----------------------------------------------------------
 init();
+
+/*
+ * End of script!
+ */

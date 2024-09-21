@@ -16,16 +16,7 @@
  */
 
 /*
- * Use this script to switch on some light as the response to motion detected
- * by a Shelly Blu Motion device.
- *
- * The script will only respond if the reported illuminance is below a given
- * threshold. Therefore it should be used with only one Shelly BLU Motion only,
- * although it supports multiple of them.
- *
- * The switching Shelly component (a Shelly Plus1 in my case) is configured to
- * revert the device status after some time; this is not configured by the
- * script.
+ * Use this script to respond to button actions from Shelly BLU Button devices.
  */
 /******************* START CHANGE HERE *******************/
 let CONFIG = {
@@ -49,50 +40,8 @@ let CONFIG = {
   //  allowedMacAddresses: null,
   allowedMacAddresses: [
   // "aa:bc:12:34:56:78", // events only from these mac addresses are allowed.
-    "b0:c7:de:3b:29:15"
+    "38:39:8f:a5:d4:9d"
   ],
-
-  /**
-   * Light will be switched on only when the illuminance is reported to be
-   * lower than the given value.
-   */
-  illuThreshold: 15,
-
-  /**
-   * Called when motion is reported by the filtered Shelly BLU Motion devices.
-   *
-   * @param {Boolean} motion – true, when there was motion detected, false
-   *     otherwise.
-   * @param {Object} eventData – An object, containing all parameters received
-   *     from the Shelly BLU Motion device.
-   *     Example: {"encryption":false,"BTHome_version":2,"pid":16,
-   *         "battery":100,"illuminance":109,"motion":1,"button":1,"rssi":-53,
-   *         "address":"aa:bc:12:34:56:78"}
-   */
-  motionHandler: function( motion, eventData )
-  {
-    if( motion && eventData.illuminance < CONFIG.illuThreshold )
-    {
-      logger( "Light switched on", "Info" );
-      Shelly.call( "Switch.Set", { id: 0, on: true } );
-    }
-  },
-
-  /**
-   * Called when illuminance is reported from the filtered Shelly BLU Motion
-   * devices.
-   *
-   * @param {Number} illuminance – Current illuminance value.
-   * @param {Object} eventData – An object, containing all parameters received
-   *     from the Shelly BLU Motion device.
-   *     Example: {"encryption":false,"BTHome_version":2,"pid":16,
-   *         "battery":100,"illuminance":109,"motion":1,"button":1,"rssi":-53,
-   *         "address":"aa:bc:12:34:56:78"}
-   */
-  illuminanceHandler: function( illuminance, eventData )
-  {
-    // Does nothing currently.
-  },
 
   /**
    * Called when packet from filtered Shelly BLU device is received.
@@ -105,10 +54,26 @@ let CONFIG = {
    */
   onStatusUpdate: function( eventData )
   {
-    // Does nothing currently.
+    logger( "onStatusUpdate() called", "Debug" );
+    printEventData( eventData );
   }
 };
 /******************* STOP CHANGE HERE *******************/
+
+/**
+ * Writes the event data entries to the console.
+ *
+ * @param {Object} eventData – The value for the data entry.
+ */
+function printEventData( eventData )
+{
+    logger( "printEventData() called", "Debug" );
+    keys = Object.keys( eventData );
+    keys.forEach( function( name )
+    {
+       logger( eventData [name], name );
+    });
+}   //  printEventData()
 
 let ALLTERCO_MFD_ID_STR = "0ba9";
 let BTHOME_SVC_ID_STR = "fcd2";
@@ -304,18 +269,6 @@ function onReceivedPacket( data )
       logger( ["Received event from", data.address, "outside of the allowed addresses"], "Info" );
       return;
     }
-  }
-
-  if( typeof CONFIG.motionHandler === "function" && typeof data.motion !== "undefined" )
-  {
-    CONFIG.motionHandler( data.motion === 1, data );
-    logger( "Motion handler called", "Info" );
-  }
-
-  if( typeof CONFIG.illuminanceHandler === "function" && typeof data.illuminance !== "undefined" )
-  {
-    CONFIG.illuminanceHandler( data.illuminance, data );
-    logger( "Illuminance handler called", "Info" );
   }
 
   if( typeof CONFIG.onStatusUpdate === "function" )
